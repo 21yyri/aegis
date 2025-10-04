@@ -11,3 +11,5 @@ class File(db.Model):
 
     name: so.Mapped[str] = so.mapped_column(sa.String(200))
     date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), default=datetime.now)
+
+    size: so.Mapped[int] = so.mapped_column(sa.Integer())

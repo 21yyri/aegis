@@ -19,7 +19,11 @@ def get_backups():
     user = db.session.query(User).filter_by(username = get_jwt_identity()).first()
 
     files = db.session.query(File).filter_by(owner_id = user.id).all()
-    return jsonify([file.name for file in files]), 200
+    return jsonify([{
+        "name": file.name,
+        "date": file.date,
+        "size": file.size
+    } for file in files]), 200
 
 
 @app.route("/upload", methods=['POST'])
@@ -27,7 +31,7 @@ def get_backups():
 def create_backup():
     file = request.files["arquivo"]
     user = db.session.query(User).filter_by(username = get_jwt_identity()).first()
-
+    
     try:
         with pyzipper.AESZipFile(file, 'r') as zipfile:
             zipfile.extractall(f'backups/{user.username}/{file.filename[:-4]}/')
@@ -60,16 +64,20 @@ def create_backup():
         }), 400
     
     try:
-        file_object = File(name = file.filename, owner = user)
+        file_object = File(
+            name = file.filename, owner = user,
+            size = os.path.getsize(f"backups/{user.username}/{file.filename}")
+        )
 
         db.session.add(file_object)
         db.session.commit()
     except:
         file_object = db.session.query(File).filter_by(name = file.filename).first()
+
+        file_object.size = os.path.getsize(f"backups/{user.username}/{file.filename}")
         file_object.date = datetime.now()
 
         db.session.commit()
-
 
     return jsonify({
         "msg": "Uploaded files."
