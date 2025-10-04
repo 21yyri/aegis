@@ -8,7 +8,9 @@ import os
 
 import subprocess, platform
 
-KEY = os.getenv("enc_key")
+from datetime import datetime
+
+KEY = os.getenv("ENC_KEY")
 
 
 @app.route("/list")
@@ -25,12 +27,6 @@ def get_backups():
 def create_backup():
     file = request.files["arquivo"]
     user = db.session.query(User).filter_by(username = get_jwt_identity()).first()
-
-    file_exists = db.session.query(File).filter_by(name = file.name).first()
-    if file_exists:
-        return jsonify({
-            "msg": "File already exists"
-        })
 
     try:
         with pyzipper.AESZipFile(file, 'r') as zipfile:
@@ -57,23 +53,28 @@ def create_backup():
         elif platform.system() == "Linux":
             subprocess.run(f'sudo rm -r "backups/{user.username}/{file.filename[:-4]}/"')
 
-        file_object = File(
-            name = file.filename, owner = user
-        )
-
-        db.session.add(file_object)
-        db.session.commit()
-
-        return jsonify({
-            "msg": "Uploaded files."
-        }), 201
     
-    except Exception as e:
-        print(e)
+    except Exception:
         return jsonify({
             "msg": "Error while uploading file."
         }), 400
     
+    try:
+        file_object = File(name = file.filename, owner = user)
+
+        db.session.add(file_object)
+        db.session.commit()
+    except:
+        file_object = db.session.query(File).filter_by(name = file.filename).first()
+        file_object.date = datetime.now()
+
+        db.session.commit()
+
+
+    return jsonify({
+        "msg": "Uploaded files."
+    }), 201
+
 
 @app.route("/download/<file_name>")
 @jwt_required()

@@ -9,5 +9,5 @@ class File(db.Model):
     owner_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey('user.id'))
     owner: so.Mapped['User'] = so.relationship(back_populates='files') # type: ignore
 
-    name: so.Mapped[str] = so.mapped_column(sa.String(200), unique=True)
+    name: so.Mapped[str] = so.mapped_column(sa.String(200))
     date: so.Mapped[datetime] = so.mapped_column(sa.DateTime(), default=datetime.now)
