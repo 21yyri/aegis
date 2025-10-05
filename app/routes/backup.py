@@ -2,13 +2,9 @@ from app import app, db
 from flask import request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import User, File
-
-import pyzipper
-import os
-
-import subprocess, platform
-
+import subprocess, platform, os
 from datetime import datetime
+import pyzipper
 
 KEY = os.getenv("ENC_KEY")
 
@@ -29,13 +25,13 @@ def get_backups():
 @app.route("/upload", methods=['POST'])
 @jwt_required()
 def create_backup():
-    file = request.files["arquivo"]
+    file = request.files["files"]
     user = db.session.query(User).filter_by(username = get_jwt_identity()).first()
     
     try:
         with pyzipper.AESZipFile(file, 'r') as zipfile:
             zipfile.extractall(f'backups/{user.username}/{file.filename[:-4]}/')
-        
+
         base_path = f"backups/{user.username}/{file.filename}"
         with pyzipper.AESZipFile(
             f'backups/{user.username}/{file.filename}', 
@@ -50,38 +46,40 @@ def create_backup():
                     arcname = os.path.relpath(file_path, os.path.dirname(base_path))
                     
                     zipfile.write(file_path, arcname=arcname)
-        
-
+            
         if platform.system() == "Windows":
             subprocess.run(f'rmdir /s /q "backups/{user.username}/{file.filename[:-4]}/"', shell = True)
         elif platform.system() == "Linux":
             subprocess.run(f'sudo rm -r "backups/{user.username}/{file.filename[:-4]}/"')
-
     
-    except Exception:
+    except Exception as e:
         return jsonify({
             "msg": "Error while uploading file."
         }), 400
     
-    try:
-        file_object = File(
-            name = file.filename, owner = user,
-            size = os.path.getsize(f"backups/{user.username}/{file.filename}")
+    file_object = db.session.query(File).filter_by(name = file.filename).first()
+    if not file_object:
+        new_file = File(
+            name = file.filename,
+            size = os.path.getsize(f"backups/{user.username}/{file.filename}"),
+            owner_id = user.id
         )
 
-        db.session.add(file_object)
+        db.session.add(new_file)
         db.session.commit()
-    except:
-        file_object = db.session.query(File).filter_by(name = file.filename).first()
 
-        file_object.size = os.path.getsize(f"backups/{user.username}/{file.filename}")
-        file_object.date = datetime.now()
+        return jsonify({
+            "msg": "Uploaded files."
+        }), 201
 
-        db.session.commit()
+    file_object.date = datetime.now()
+    file_object.size = os.path.getsize(f"backups/{user.username}/{file.filename}")
+
+    db.session.commit()
 
     return jsonify({
-        "msg": "Uploaded files."
-    }), 201
+        "msg": "Updated files."
+    }), 200
 
 
 @app.route("/download/<file_name>")
